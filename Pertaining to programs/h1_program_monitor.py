@@ -14,7 +14,7 @@ not by trusting a "newest first" ordering.
 SETUP REQUIRED before running:
 1. Generate an API token: HackerOne Settings -> API Token
 2. In PowerShell, before running this script:
-     $env:H1_USERNAME='malikdishan'
+     $env:H1_USERNAME='your_username_here'
      $env:H1_API_TOKEN='your_token_here'
      python h1_program_monitor_v2.py
 
