@@ -158,20 +158,39 @@ def fetch_intigriti_programs():
                 return None
 
             soup = BeautifulSoup(resp.text, "html.parser")
-            # Program cards: each has a link to /programs/<company>/<slug>
-            for link in soup.select('a[href*="app.intigriti.com/programs/"]'):
+            # Each program is a card: <h4 class="...font-heading...">Name</h4>
+            # inside a div that also contains a green "New" pill (<p>New</p>)
+            # when freshly launched, a type pill ("Responsible disclosure" or
+            # "Bug bounty program"), and the "View program" link at the
+            # bottom pointing to app.intigriti.com/programs/...
+            for heading in soup.select("h4"):
+                name = heading.get_text(strip=True)
+                if not name:
+                    continue
+                card = heading.find_parent(
+                    "div",
+                    class_=lambda c: c and "ring-grey-100" in c and "rounded-lg" in c
+                )
+                if card is None:
+                    continue
+
+                link = card.select_one('a[href*="app.intigriti.com/programs/"]')
+                if link is None:
+                    continue
                 href = link.get("href", "")
-                card = link.find_parent()
-                # Walk up to find the block that contains the title + "New" badge
-                block_text = card.get_text(" ", strip=True) if card else ""
-                title_tag = link.find(["h3", "h4"]) or link
-                name = title_tag.get_text(strip=True) if title_tag else href
-                is_new = "New" in block_text.split(name)[-1][:40] if name in block_text else False
+
+                pill_texts = [p.get_text(strip=True) for p in card.select("p")]
+                is_new = "New" in pill_texts
+                is_vdp = "Responsible disclosure" in pill_texts
+                is_bounty = "Bug bounty program" in pill_texts
+
                 programs.append({
                     "id": href,
                     "name": name,
                     "url": href,
-                    "is_new_badge": bool(is_new),
+                    "is_new_badge": is_new,
+                    "is_vdp": is_vdp,
+                    "is_bounty": is_bounty,
                 })
     except requests.exceptions.RequestException as e:
         print(f"[Intigriti] Request failed: {e}")
@@ -225,8 +244,9 @@ def run_once(seen):
         if intigriti_new:
             print(f"\n--- Intigriti: {len(intigriti_new)} new-to-you program(s) ---")
             for p in intigriti_new:
-                badge = "site marks this NEW" if p["is_new_badge"] else "new to this script, no site badge"
-                print(f"  NEW  {p['name']}  ({badge})")
+                badge = "site marks this NEW" if p["is_new_badge"] else "no site badge"
+                kind = "VDP" if p["is_vdp"] else ("Bounty" if p["is_bounty"] else "type unclear")
+                print(f"  NEW  {p['name']}  [{kind}]  ({badge})")
                 print(f"       {p['url']}")
                 new_intigriti_ids.append(p["id"])
         else:
